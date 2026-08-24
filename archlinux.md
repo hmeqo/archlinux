@@ -114,6 +114,7 @@
     - [pacman 彩蛋](#pacman-彩蛋)
     - [pacman以及AUR助手常用命令](#pacman以及aur助手常用命令)
     - [软件包降级](#软件包降级)
+    - [修改软件包安装信息](#修改软件包安装信息)
   - [常用软件包/工具/命令](#常用软件包工具命令)
     - [KDE软件生态](#kde软件生态)
     - [老工具替代](#老工具替代)
@@ -141,11 +142,13 @@
     - [alist](#alist)
       - [alist 挂载 webdav](#alist-挂载-webdav)
     - [zerotier](#zerotier)
+    - [easytier](#easytier)
     - [tailscale](#tailscale)
     - [sunshine](#sunshine)
       - [sunshine 配置虚拟显示器](#sunshine-配置虚拟显示器)
     - [moonlight](#moonlight)
     - [toilet](#toilet)
+    - [tabby](#tabby)
   - [技巧](#技巧)
     - [在 KDE 中使 GTK 程序使用 KDE 对话框以获得一致的外观](#在-kde-中使-gtk-程序使用-kde-对话框以获得一致的外观)
     - [关闭桌面环境特效](#关闭桌面环境特效)
@@ -1298,12 +1301,28 @@ w     /path/to/file  -     -     -       -         defer+madvise
 
 ### 初始化密钥环
 
-```bash
-pacman-key --init
-pacman-key --populate archlinux
-```
-
 正常安装 Archlinux 不出意外并不需要自己手动初始化密钥环
+
+- 原生 Arch
+
+  ```bash
+  pacman-key --init
+  pacman-key --populate archlinux
+  ```
+
+- 如果是 SteamOS 还需要初始化 holo 密钥环 (holo 为 steamos 核心名称)
+
+  ```bash
+  pacman-key --init
+  pacman-key --populate archlinux holo
+  pacman -Sy archlinux-keyring holo-keyring
+  ```
+
+随后刷新密钥环
+
+```bash
+pacman-key --refresh-keys
+```
 
 ### 多线程下载
 
@@ -1512,6 +1531,20 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
   paru --fm nvim -S <package_name>
   ```
 
+### 修改软件包安装信息
+
+- 标记为依赖
+
+  ```bash
+  pacman -D --asdeps <package_name>
+  ```
+
+- 标记为独立安装
+
+  ```bash
+  pacman -D --asexplicit <package_name>
+  ```
+
 ## 常用软件包/工具/命令
 
 | 软件包/工具/命令          | 描述                                  |
@@ -1536,8 +1569,8 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | `konsole`                 | 终端                                  |
 | `yakuake`                 | 下拉终端                              |
 | `kitty`                   | 终端                                  |
+| `alacritty`               | 终端                                  |
 | `wezterm`                 | 终端                                  |
-| `foot`                    | 终端                                  |
 | `ghostty`                 | 终端                                  |
 | `cool-retro-term`         | 复古终端                              |
 | **命令行工具**            |                                       |
@@ -1734,7 +1767,7 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | `motrix`                  | 下载工具                              |
 | [`alist`](#alist)         | 整合各种网盘                          |
 | `davfs`                   | 可将 alist 网盘挂载到本地             |
-| **远程/VPN/串流**         |                                       |
+| **连接/远程/VPN/串流**    |                                       |
 | `kdeconnect`              | 手机电脑局域网连接                    |
 | `scrcpy`                  | Android 屏幕远程控制                  |
 | `krfb`                    | KDE VNC 远程服务端                    |
@@ -1743,10 +1776,11 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | `frpc / frps`             | 内网穿透                              |
 | `npc / nps`               | 内网穿透                              |
 | [`zerotier`](#zerotier)   | VPN                                   |
-| `easytier`                | VPN                                   |
+| [`easytier`](#easytier)   | VPN                                   |
 | [`tailscale`](#tailscale) | VPN                                   |
 | [`sunshine`](#sunshine)   | 串流服务端                            |
 | [`moonlight`](#moonlight) | 串流客户端                            |
+| `localsend`               | 局域网文件传输                        |
 | **代理**                  |                                       |
 | `dae`                     | 通过内核分流的透明代理                |
 | `daed`                    | dae core + web UI                     |
@@ -1800,6 +1834,7 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | `valkey`                  |                                       |
 | `tiny-rdm`                | redis客户端                           |
 | `tokei`                   | 代码行数统计                          |
+| [`tabby`](#tabby)         | 自部署代码补全                        |
 | **其他**                  |                                       |
 | `teamspeak3`              | 语音服务器                            |
 
@@ -2306,6 +2341,107 @@ mangohud --dlsym glxgears
     通过 `sudo zerotier-cli orbit <id> <id>` 连接 moon, 出现 `200 orbit OK` 表示成功,
     再次运行 `sudo zerotier-cli listpeers` 可以看到对应的行 LEAF 变成了 MOON (可能有延迟)
 
+### easytier
+
+安装 `easytier-bin` 或 `easytier-core` + `easytier-cli`
+
+然后 `mkdir -p /var/lib/easytier` 确保目录存在, 编写 `/etc/easytier/config.toml`, 配置示例如下
+
+```conf
+# Instance name, used to identify this VPN node on the same machine
+instance_name = ""
+# Hostname, used to identify the hostname of this device
+hostname = ""
+# Instance ID, generally a UUID, unique within the same VPN network
+# instance_id = ""
+
+# ipv4 = "10.126.0.100/24"
+# dhcp = true
+
+## List of listeners, used to accept connections
+listeners = [
+  "tcp://0.0.0.0:11010",
+  "udp://0.0.0.0:11010",
+  "wg://0.0.0.0:11011",
+  "ws://0.0.0.0:11011/",
+  "wss://0.0.0.0:11012/",
+]
+  
+## Exit node list
+exit_nodes = [
+]
+  
+## RPC portal address for management
+# rpc_portal = "0.0.0.0:0"
+
+[network_identity]
+network_name = "example"
+network_secret = "123456"
+
+## Subnet proxy node configuration, can have multiple configurations
+# [[proxy_network]]
+# cidr = "10.126.0.101"
+
+## For standalone (coordinator server), do not write peer
+[[peer]]
+uri = "tcp://example.com:11010"
+
+[[peer]]
+uri = "udp://example.com:11010"
+
+[flags]
+## Default protocol used to connect to peer nodes
+default_protocol = "tcp"
+## TUN device name, if empty, the default name will be used
+dev_name = "et"
+## Disable TUN device
+# no_tun = false
+## Enable encryption
+enable_encryption = true
+## Enable IPv6 support
+enable_ipv6 = true
+
+## Latency-first mode, will attempt to forward traffic using the lowest latency path, default is to use the shortest path
+latency_first = true
+use_smoltcp = true
+# enable_kcp_proxy = true
+enable_quic_proxy = true
+# proxy_forward_by_system = true
+## Disable udp hole punching
+# disable_udp_hole_punching = true
+
+## Configure this node as an exit node
+enable_exit_node = true
+## Only forward traffic for whitelisted networks, supports wildcard strings. Multiple network names can be separated by spaces. If this parameter is empty, forwarding is disabled. Default allows all networks. For example: '*' (all networks), 'def*' (networks prefixed with def), 'net1 net2' (only allow net1 and net2)
+foreign_network_whitelist = "*"
+
+## Relay Other
+relay_all_peer_rpc = false
+
+accept_dns = true
+```
+
+编写 systemd 服务 `/etc/systemd/system/easytier.service`, 配置示例如下
+
+```conf
+[Unit]
+Description=A full meshed p2p VPN, connecting all your devices in one network with one command.
+After=network.target
+
+[Service]
+Type=exec
+WorkingDirectory=/var/lib/easytier
+ExecStart=/usr/bin/easytier-core -c /etc/easytier/config.toml -c /etc/easytier/another.toml
+Restart=on-failure
+StartLimitIntervalSec=0
+RestartSec=5
+LimitNPROC=500
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ### tailscale
 
 - 安装
@@ -2407,6 +2543,53 @@ sunshine 在 windows 和 linux 下都是通过 web 页面操作, 启动方式也
   ```bash
   toilet -f mono12 -F metal -t ArchLinux
   ```
+
+### tabby
+
+通过 docker/podman 安装
+
+```bash
+mkdir -p $XDG_DATA_HOME/tabby
+
+# Nvidia
+podman run -d --replace \
+  --name tabby \
+  --gpus all \
+  -p 8080:8080 \
+  -v $XDG_DATA_HOME/tabby:/data \
+  registry.tabbyml.com/tabbyml/tabby \
+    serve \
+    --device cuda
+```
+
+配置为远程 api
+
+`~/.local/share/tabby/config.toml`
+
+```bash
+[model.completion.http]
+kind = "openai/completion"
+model_name = "deepseek-v4-flash"
+api_endpoint = "https://api.deepseek.com/beta"
+api_key = "<YOUR_API_KEY>"
+
+# [model.completion.local]
+# model_id = "Qwen2.5-Coder-3B"
+
+# [model.chat.local]
+# model_id = "Qwen2.5-Coder-1.5B-Instruct"
+```
+
+下载模型
+
+```bash
+podman run --rm \
+  -v $HOME/.local/share/tabby:/data \
+  tabbyml/tabby \
+  download --model Qwen2.5-Coder-3B
+```
+
+可用模型列表: <https://tabby.tabbyml.com/docs/models/>
 
 ## 技巧
 
@@ -2703,7 +2886,7 @@ htop 可以通过 F4 搜索来筛选并锁定进程
 
 #### USB 虚拟拔插
 
-`lsusb` 查看插入的 usb
+使用 `lsusb` 或 `lsusb.py` (来自 `usbutils` 包) 查看插入的 usb
 
 ```bash
 # Remove
@@ -2750,76 +2933,39 @@ Archwiki: <https://wiki.archlinux.org/title/Main_page>
 
 以下只是简短描述, 详情见: <https://www.freedesktop.org/software/systemd/man/latest/file-hierarchy.html>
 
-- `/boot`
+| 位置                  | 描述                                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/boot`               | 存放启动镜像各种启动配置的文件夹                                                                                                                      |
+| `/dev`                | 设备目录, 例如和主板连接的硬盘, u盘, 鼠标, 键盘等设备都在这里显示                                                                                     |
+| `/etc`                | 配置文件目录                                                                                                                                          |
+| `/home`               | 用户目录, 例如用户 `<user>` 的用户目录是 `/home/<user>`, 这个位置并非绝对的, 可以修改                                                                 |
+| `/mnt`                | 用于挂载其他分区, 例如将 windows 盘挂载到 `/mnt/windows`                                                                                              |
+| `/opt`                | 用于存放软件包的目录, 通常是一些因某些原因不能把软件拆分开的商业软件                                                                                  |
+| `/proc`               | 进程目录, 在这里可以看到当前正在运行的进程, 以及各种信息                                                                                              |
+| `/root`               | root 用户的家目录                                                                                                                                     |
+| `/run`                | 用于存放运行时数据, 套接字, 和其他类似文件, 通常仅对特权程序可写                                                                                      |
+| `/srv`                | srv - Service Data, 用于存放服务的目录                                                                                                                |
+| `/sys`                | 一个虚拟内核文件系统, 主要提供与内核接口相关的 API<br>例如临时关闭 Intel CPU 睿频: `echo 1 \| sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo` |
+| `/tmp`                | 临时文件目录                                                                                                                                          |
+| `/usr`                | 用于存放应用程序的目录                                                                                                                                |
+| `/var`                | 用于存放数据的目录 (随时会变化的数据)                                                                                                                 |
+| `/bin` → `/usr/bin`   | 符号链接                                                                                                                                              |
+| `/lib` → `/usr/lib`   | 符号链接                                                                                                                                              |
+| `/lib64` → `/usr/lib` | 符号链接                                                                                                                                              |
+| `/sbin` → `/usr/bin`  | 符号链接                                                                                                                                              |
+| `EFI`                 | EFI 分区目录, 如果你把 EFI 分区挂载到了 `/boot`, 那么你可以在 `/boot/EFI` 中找到启动项<br>如果你的 EFI 挂载点是 `/`, 那么对应的 EFI 目录则是 `/EFI`   |
 
-  存放启动镜像各种启动配置的文件夹
+用户级
 
-- `/dev` - devtmpfs
-
-  设备目录, 例如和主板连接的硬盘, u盘, 鼠标, 键盘等设备都在这里显示
-
-- `/etc`
-
-  配置文件目录
-
-- `/home`
-
-  用户目录, 例如用户 `hmeqo` 的用户目录是 `/home/hmeqo`, 这个位置并非绝对的, 可以修改
-
-- `/mnt`
-
-  用于挂载其他分区, 例如将 windows 盘挂载到 `/mnt/windows`
-
-- `/opt`
-
-  用于存放软件包的目录, 通常是一些因某些原因不能把软件拆分开的商业软件
-
-- `/proc` (proc)
-
-  进程目录, 在这里可以看到当前正在运行的进程, 以及各种信息
-
-- `/root`
-
-  root 用户的家目录
-
-- `/run` (tmpfs)
-
-  用于存放运行时数据, 套接字, 和其他类似文件, 通常仅对特权程序可写
-
-- `/srv`
-
-  srv - Service Data, 用于存放服务的目录
-
-- `/sys` (sysfs)
-
-  一个虚拟内核文件系统, 主要提供与内核接口相关的 API
-
-  例如临时关闭 Intel CPU 睿频: `echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo`
-
-- `/tmp` (tmpfs)
-
-  临时文件目录
-
-- `/usr`
-
-  用于存放应用程序的目录
-
-- `/var`
-
-  用于存放数据的目录 (随时会变化的数据)
-
-- `/bin` -> `/usr/bin`
-
-- `/lib` -> `/usr/lib`
-
-- `/lib64` -> `/usr/lib`
-
-- `/sbin` -> `/usr/bin`
-
-- `EFI`
-
-  EFI 分区目录, 如果你把 EFI 分区挂载到了 `/boot`, 那么你可以在 `/boot/EFI` 中找到启动项  
-  如果你的 EFI 挂载点是 `/`, 那么对应的 EFI 目录则是 `/EFI`
+| 位置         | 系统对应   | 描述                                  |
+| ------------ | ---------- | ------------------------------------- |
+| .cache       | /var/cache | 缓存                                  |
+| .config      | /etc       | 配置                                  |
+| .local/bin   | /usr/bin   | 可执行文件                            |
+| .local/share | /usr/share | 数据                                  |
+| .local/state | /var/lib   | 状态数据, 包括 log, 通常在 <app>/logs |
+| .local/lib   | /usr/lib   | 库文件                                |
+| .local/opt   | /opt       | 软件安装                              |
 
 ### WINE/PROTON 运行 Windows 应用/游戏
 
