@@ -46,7 +46,7 @@
 - 整理碎片
 
   ```bash
-  btrfs filesystem defragment -rv <mountpoint>
+  btrfs filesystem defragment -rv [-czstd] <mountpoint>
   ```
 
 - 转换用户数据为 dup

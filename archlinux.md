@@ -169,17 +169,12 @@
     - [指定 chromium 系软件使用 kwallet](#指定-chromium-系软件使用-kwallet)
     - [挂载 smb 上的目录](#挂载-smb-上的目录)
     - [htop/btop](#htopbtop)
+    - [缩减 ext4 的 root 保留区 (reserved blocks)](#缩减-ext4-的-root-保留区-reserved-blocks)
   - [Hacker](#hacker)
     - [清除登录记录](#清除登录记录)
     - [USB/PCI 设备远程热插拔](#usbpci-设备远程热插拔)
       - [USB 虚拟拔插](#usb-虚拟拔插)
       - [PCI 虚拟拔插](#pci-虚拟拔插)
-  - [Wiki](#wiki)
-    - [GNU/Linux 基础目录结构](#gnulinux-基础目录结构)
-    - [WINE/PROTON 运行 Windows 应用/游戏](#wineproton-运行-windows-应用游戏)
-      - [WINE 生态中的各种工具介绍](#wine-生态中的各种工具介绍)
-      - [WINE/PROTON GUI 启动器](#wineproton-gui-启动器)
-    - [DKMS](#dkms)
 
 ## 安装教程
 
@@ -657,14 +652,14 @@ timedatectl set-ntp true
   元包可以自动安装新增/删除依赖, 但无法单独删除其中的软件包,  
   包组可自由选择需要的软件包, 如果需要包组则将下面示例的 plasma-meta 修改为 plasma
 
-  元包和包组包含了 sddm (会话管理器), 如果不喜欢也可以自行更换,  
+  元包和包组包含了 plasma-login-manager (一个登录会话管理器), 如果不喜欢也可以自行更换,  
   额外的软件可以参考 [KDE软件生态](#kde软件生态), 选择你需要的软件
 
   ```bash
   pacman -S plasma-meta dolphin konsole yakuake firefox ark filelight
 
-  # 然后设置sddm开机自启, 重启电脑后自动显示登录界面
-  systemctl enable sddm
+  # 然后设置 plm 开机自启, 重启电脑后自动显示登录界面
+  systemctl enable plasma-login-manager
   ```
 
 #### 安装各种驱动
@@ -703,7 +698,7 @@ timedatectl set-ntp true
     `nvidia-open` 的显卡兼容情况看这里 <https://github.com/NVIDIA/open-gpu-kernel-modules?tab=readme-ov-file#compatible-gpus>  
     不受支持的显卡可以尝试 aur 中旧版 (585 及更早的版本) 或特定版本的 nvidia 驱动
 
-    **注意: 官方仓库中的 nvidia 内核模块是为标准 linux 内核编译的, 对于其他内核如 linux-zen, 请安装 dkms 版本 `nvidia-open-dkms`**, [何为 dkms 介绍](#dkms)
+    **注意: 官方仓库中的 nvidia 内核模块是为标准 linux 内核编译的, 对于其他内核如 linux-zen, 请安装 dkms 版本 `nvidia-open-dkms`**, [何为 dkms 介绍](./wiki.md#dkms)
 
     ```bash
     pacman -S nvidia-open nvidia-utils
@@ -1186,56 +1181,57 @@ sudo systemctl enable --now linux-modules-cleanup
 zram 在内存上创建压缩块设备, 通过压缩内存节省更多的内存空间  
 利用 zram-generator 和 systemd-zram-generator 可以轻松创建 zram
 
-- 安装
+安装
 
-  ```bash
-  sudo pacman -S zram-generator
-  ```
+```bash
+sudo pacman -S zram-generator
+```
 
-- 配置
+配置
 
-  编辑 `/etc/systemd/zram-generator.conf`, 添加如下内容:
-  具体细节看: `/usr/share/doc/zram-generator/zram-generator.conf.example`
+编辑 `/etc/systemd/zram-generator.conf`, 添加如下内容:
+具体细节看: `/usr/share/doc/zram-generator/zram-generator.conf.example`
 
-  ```bash
-  [zram0]
-  zram-size = min(ram / 2, 16384)
-  compression-algorithm = lzo-rle zstd(level=3) (type=idle)
-  ```
+```bash
+[zram0]
+zram-size = min(ram / 2, 16384)
+compression-algorithm = lzo-rle zstd(level=3) (type=idle)
+```
 
-  编辑 `/etc/sysctl.d/99-zram.conf`, 添加如下内容:
+编辑 `/etc/sysctl.d/99-zram.conf`, 添加如下内容:
 
-  ```bash
-  vm.swappiness = 180
+```bash
+vm.swappiness = 180
 
-  vm.watermark_boost_factor = 0
-  vm.watermark_scale_factor = 125
-  vm.page-cluster = 0
-  ```
+vm.watermark_boost_factor = 0
+vm.watermark_scale_factor = 125
+vm.page-cluster = 0
+```
 
-  加载 sysctl 配置
+加载 sysctl 配置
 
-  ```bash
-  sudo sysctl --system
-  ```
+```bash
+sudo sysctl --system
+```
 
-  配置完成后重启系统即可生效
+注意, 不建议同时使用 zram 与 zswap, 二者职责重叠, 属于互斥关系,  
+开启 zram 后需要关闭 zswap, 请将 `zswap.enabled=0` 添加至内核参数
 
-- 不重启系统, 手动启动 zram
+配置完成后重启系统即可生效
 
-  编辑完所有配置后, 执行以下命令
+或不重启系统, 手动启动 zram，通过以下命令
+```bash
+# systemd 会自动创建一个 /dev/zram0 设备
+sudo systemctl daemon-reload
 
-  ```bash
-  # systemd 会自动创建一个 /dev/zram0 设备
-  sudo systemctl daemon-reload
+# 初始化并挂载 zram0 设备
+sudo systemctl start systemd-zram-setup@zram0.service
 
-  # 初始化并挂载 zram0 设备
-  sudo systemctl start systemd-zram-setup@zram0.service
-  ```
+# 临时关闭 zswap
+echo 0 | sudo tee /sys/module/zswap/parameters/enabled
+```
 
-- 运行状态
-
-  运行 `zramctl` 即可看到 zram 设备的使用情况, 运行 `swapon -s` 可看到 swap 和 zram 分别的使用情况
+可通过 `zramctl` 看到 zram 设备的使用情况, 运行 `swapon -s` 获取 swap 和 zram 分别的使用情况
 
 ### zswap
 
@@ -1589,7 +1585,7 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | [`tmux`](./tmux.md)       | 终端复用                              |
 | `yazi`                    | 终端下的文件管理器                    |
 | [`luit`](#luit)           | 切换编码                              |
-| chafa                     | 终端图片查看                          |
+| chafa                     | 终端查看图片                          |
 | **终端分区管理/文件统计** |                                       |
 | `efibootmgr`              | EFI 启动管理                          |
 | `lsblk`                   |                                       |
@@ -1710,6 +1706,13 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | `aegisub`                 | 字幕编辑                              |
 | `mqttx`                   | mqtt 调试                             |
 | `cutecom`                 | 串口调试                              |
+| **Agent**                 |                                       |
+| `herdr`                   | AI终端复用器                          |
+| `orca`                    | ADE                                   |
+| `oh-my-pi`                | Agent                                 |
+| `opencode`                | Agent                                 |
+| `codex`                   | Agent                                 |
+| `backlog`                 | 任务追踪                              |
 | **视频**                  |                                       |
 | `ffmpeg`                  | 万金油, 视频图片音频都行              |
 | `mpv`                     | 极简视频播放器                        |
@@ -2193,9 +2196,13 @@ mangohud --dlsym glxgears
 
 - 方法1: 使用 rclone
 
-  运行 rclone, 选择 webdav, 根据向导一步步填写信息, 完成后即可挂载
+  运行 `rclone`, 选择 webdav, 根据向导一步步填写信息，
+  也可通过 `rclone config` 管理配置
+
+  测试挂载
 
   ```bash
+  # rclone mount openlist: /mnt --vfs-cache-mode full
   rclone mount <remote_name>:[remote_path] </mnt/dav>
   ```
 
@@ -2852,6 +2859,21 @@ sudo mount --mkdir -t cifs \
 
 htop 可以通过 F4 搜索来筛选并锁定进程
 
+### 缩减 ext4 的 root 保留区 (reserved blocks)
+
+ext4 默认把 5% 的块留给 root, 普通用户无法写入  
+常见调法为系统盘 1%, 纯数据盘 0%, 需要注意根分区设 0 时如果写满时日志/升级可能会失败  
+
+```bash
+## 三选一
+# 保留 1%（按百分比，随盘大小变化）
+sudo tune2fs -m 1 "<dev>"
+# 或按块数精确保留 3 GiB（786432 仅 4K 块成立, 非 4K 块自行计算）
+sudo tune2fs -r 786432 "<dev>"
+# 完全不留
+sudo tune2fs -m 0 "<dev>"
+```
+
 ## Hacker
 
 ### 清除登录记录
@@ -2878,9 +2900,9 @@ htop 可以通过 F4 搜索来筛选并锁定进程
 
   将清除后的登录记录导入
 
-   ```bash
-   utmpdump -r wtmp_filtered.txt | sudo tee /var/log/wtmp
-   ```
+  ```bash
+  utmpdump -r wtmp_filtered.txt | sudo tee /var/log/wtmp
+  ```
 
 ### USB/PCI 设备远程热插拔
 
@@ -2924,123 +2946,3 @@ lspci | grep <设备名>
 echo 1 | sudo tee /sys/bus/pci/devices/<PCI_ID>/remove
 echo 1 | sudo tee /sys/bus/pci/rescan
 ```
-
-## Wiki
-
-Archwiki: <https://wiki.archlinux.org/title/Main_page>
-
-### GNU/Linux 基础目录结构
-
-以下只是简短描述, 详情见: <https://www.freedesktop.org/software/systemd/man/latest/file-hierarchy.html>
-
-| 位置                  | 描述                                                                                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/boot`               | 存放启动镜像各种启动配置的文件夹                                                                                                                      |
-| `/dev`                | 设备目录, 例如和主板连接的硬盘, u盘, 鼠标, 键盘等设备都在这里显示                                                                                     |
-| `/etc`                | 配置文件目录                                                                                                                                          |
-| `/home`               | 用户目录, 例如用户 `<user>` 的用户目录是 `/home/<user>`, 这个位置并非绝对的, 可以修改                                                                 |
-| `/mnt`                | 用于挂载其他分区, 例如将 windows 盘挂载到 `/mnt/windows`                                                                                              |
-| `/opt`                | 用于存放软件包的目录, 通常是一些因某些原因不能把软件拆分开的商业软件                                                                                  |
-| `/proc`               | 进程目录, 在这里可以看到当前正在运行的进程, 以及各种信息                                                                                              |
-| `/root`               | root 用户的家目录                                                                                                                                     |
-| `/run`                | 用于存放运行时数据, 套接字, 和其他类似文件, 通常仅对特权程序可写                                                                                      |
-| `/srv`                | srv - Service Data, 用于存放服务的目录                                                                                                                |
-| `/sys`                | 一个虚拟内核文件系统, 主要提供与内核接口相关的 API<br>例如临时关闭 Intel CPU 睿频: `echo 1 \| sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo` |
-| `/tmp`                | 临时文件目录                                                                                                                                          |
-| `/usr`                | 用于存放应用程序的目录                                                                                                                                |
-| `/var`                | 用于存放数据的目录 (随时会变化的数据)                                                                                                                 |
-| `/bin` → `/usr/bin`   | 符号链接                                                                                                                                              |
-| `/lib` → `/usr/lib`   | 符号链接                                                                                                                                              |
-| `/lib64` → `/usr/lib` | 符号链接                                                                                                                                              |
-| `/sbin` → `/usr/bin`  | 符号链接                                                                                                                                              |
-| `EFI`                 | EFI 分区目录, 如果你把 EFI 分区挂载到了 `/boot`, 那么你可以在 `/boot/EFI` 中找到启动项<br>如果你的 EFI 挂载点是 `/`, 那么对应的 EFI 目录则是 `/EFI`   |
-
-用户级
-
-| 位置         | 系统对应   | 描述                                  |
-| ------------ | ---------- | ------------------------------------- |
-| .cache       | /var/cache | 缓存                                  |
-| .config      | /etc       | 配置                                  |
-| .local/bin   | /usr/bin   | 可执行文件                            |
-| .local/share | /usr/share | 数据                                  |
-| .local/state | /var/lib   | 状态数据, 包括 log, 通常在 <app>/logs |
-| .local/lib   | /usr/lib   | 库文件                                |
-| .local/opt   | /opt       | 软件安装                              |
-
-### WINE/PROTON 运行 Windows 应用/游戏
-
-#### WINE 生态中的各种工具介绍
-
-- Wine
-
-  - 是什么: Wine 是一个开源兼容层, 允许在类 Unix 操作系统 (如 Linux、macOS) 上运行设计为在 Microsoft Windows 上运行的应用程序 (特别是那些使用 Win32 API 的应用程序)  
-    其原理是重写了 Windows 所有的 dll, 将对 Windows 的 API 调用转换为 Linux 的 API 调用
-
-- DXVK
-
-  DXVK 一个用于转换 DirectX9/10/11 API 为 Vulkan API 的兼容层, 能大幅度提升游戏性能, 甚至超越 Windows, DXVK 不止能用于 Linux, 也能在 Windows 上使用
-
-- VKD3D
-
-  VKD3D 一个用于转换 DirectX12 API 为 Vulkan API 的兼容层, 不过 VKD3D 不像 DXVK 那样已经发展了很久, VKD3D 的游戏性能在某些情况下可能只有 Windows 的 2/3
-
-- Proton
-
-  - 是什么: Proton 是 Valve 为其数字发行平台 Steam 开发的一个开源工具, 基于 Wine, 但专门为运行 Windows 游戏进行了优化  
-    Proton 整合了 DXVK, VKD3D 等一系列工具, Valve 对 Proton 的更改都会回馈到上游 (Wine, DXVK, VKD3D 等), Proton 极大促进了 Linux 游戏/软件生态的发展
-  - 与 Wine 的关系: Proton 构建于 Wine 之上, 使用 Wine 的代码库作为其核心, 并添加了 Valve 自己的补丁、优化和额外功能, 以提高游戏的兼容性和性能
-
-- Proton-GE
-
-  由 GloriousEggroll 创建的一个 Proton 定制版, 相比于 Proton, 整合了更多 Proton 没有或暂时没有的功能, 有更好的游戏兼容性
-
-- Wine-GE (自 Wine-9.0 起不再维护)
-
-  由 GloriousEggroll 创建的一个 Wine 定制版, Wine-GE 是为非 Steam 游戏分发的版本, 因为 Proton 是专为 Steam 开发, 有很多非 Steam 游戏不需要的功能
-
-- UMU-Launcher
-
-  由于 Proton 是专门为 Steam 游戏开发的, 在 Wine9.0 之前, 一般建议用 Wine-GE 运行非 Steam 游戏/应用, Proton-GE 运行 Steam 游戏  
-  但在 9.0 之后, GE 作者不再分发 Wine-GE 版本, 转而开发了 UMU-Launcher, 用 Proton-GE 运行非 Steam 游戏/应用
-
-- GPTK (Game Porting Toolkit)
-
-  Apple 为 macOS 开发的基于 Wine 的游戏兼容层
-
-> [!NOTE]
-> Proton 能够以高性能运行 Windows 游戏, 主要功劳在于 DXVK 和 VKD3D  
-> 各种利用 Wine 运行 Windows 游戏的启动器都默认帮你配好了 DXVK, VKD3D 等工具, 其游戏性能和 Proton 不会有太大区别
-
-#### WINE/PROTON GUI 启动器
-
-- Steam
-
-  伟大无需多言
-
-- lutris
-
-  流行且通用的游戏/应用启动/管理工具
-
-- bottles
-
-  通用 win 应用/游戏启动/管理工具
-
-- faugus-launcher
-
-  利用 UMU-Launcher 的游戏/应用启动器
-
-- heroic-games-launcher
-
-  非官方 Epic 游戏启动器
-
-- CrossOver
-
-  付费版 Wine
-
-### DKMS
-
-> 动态内核模块支持 （Dynamic Kernel Module Support，DKMS）是用来生成Linux的内核模块的一个框架，其源代码一般不在Linux内核源代码树。 当新的内核安装时，DKMS支持的内核设备驱动程序 到时会自动重建。 DKMS可以用在两个方向：如果一个新的内核版本安装，自动编译所有的模块，或安装新的模块（驱动程序）在现有的系统版本上，而不需要任何的手动编译或预编译软件包需要。例如，这使得新的显卡可以使用在旧的Linux系统上。
-
-简单说，Linux 内核由于 ABI 不兼容，编译好的内核模块通常只能由特定版本的内核加载。
-想要增加额外的内核模块（如显卡驱动），要么每当内核更新时手动重新编译，要么使用 DKMS。
-DKMS 本质上是一个自动化管理系统，它利用内核头文件，在内核升级或模块安装时，通过触发器自动为系统中已安装的内核重新编译并部署对应的模块，省去了人工手动维护的麻烦。

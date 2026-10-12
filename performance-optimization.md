@@ -4,6 +4,21 @@ ArchWiki指路: <https://wiki.archlinuxcn.org/wiki/%E6%80%A7%E8%83%BD%E4%BC%98%E
 
 需要注意: 优化选项之间或与其他程序可能不能兼容
 
+- [Performance Optimization](#performance-optimization)
+  - [CPU](#cpu)
+    - [scx-scheds](#scx-scheds)
+    - [Ananicy](#ananicy)
+    - [preempt=full](#preemptfull)
+  - [显卡](#显卡)
+    - [envycontrol](#envycontrol)
+    - [nvidia-powerd](#nvidia-powerd)
+  - [内存](#内存)
+    - [优化内存透明大页](#优化内存透明大页)
+  - [启动优化](#启动优化)
+    - [mkinitcpio的systemd钩子](#mkinitcpio的systemd钩子)
+  - [Tweaks](#tweaks)
+    - [fstrim](#fstrim)
+
 ## CPU
 
 ### scx-scheds
