@@ -2410,7 +2410,7 @@ enable_ipv6 = true
 
 ## Latency-first mode, will attempt to forward traffic using the lowest latency path, default is to use the shortest path
 latency_first = true
-use_smoltcp = true
+# use_smoltcp = true
 # enable_kcp_proxy = true
 enable_quic_proxy = true
 # proxy_forward_by_system = true
@@ -2418,12 +2418,12 @@ enable_quic_proxy = true
 # disable_udp_hole_punching = true
 
 ## Configure this node as an exit node
-enable_exit_node = true
+# enable_exit_node = true
 ## Only forward traffic for whitelisted networks, supports wildcard strings. Multiple network names can be separated by spaces. If this parameter is empty, forwarding is disabled. Default allows all networks. For example: '*' (all networks), 'def*' (networks prefixed with def), 'net1 net2' (only allow net1 and net2)
-foreign_network_whitelist = "*"
+# foreign_network_whitelist = "*"
 
 ## Relay Other
-relay_all_peer_rpc = false
+# relay_all_peer_rpc = false
 
 accept_dns = true
 ```
@@ -2437,10 +2437,13 @@ After=network.target
 
 [Service]
 Type=exec
+User=easytier
 WorkingDirectory=/var/lib/easytier
+StateDirectory=easytier
 ExecStart=/usr/bin/easytier-core -c /etc/easytier/config.toml -c /etc/easytier/another.toml
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 Restart=on-failure
-StartLimitIntervalSec=0
 RestartSec=5
 LimitNPROC=500
 LimitNOFILE=1000000
