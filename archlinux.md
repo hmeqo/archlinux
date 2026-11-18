@@ -23,7 +23,7 @@
         - [有线网络连接](#有线网络连接)
         - [WIFI 网络连接](#wifi-网络连接)
       - [分区](#分区)
-        - [创建分区](#创建分区)
+        - [分配分区](#分配分区)
         - [格式化分区](#格式化分区)
         - [挂载分区](#挂载分区)
     - [2. 安装](#2-安装)
@@ -249,38 +249,42 @@ BiliBili: <https://www.bilibili.com/video/BV1XY4y1f77S>
 
 #### 分区
 
-几种主要的分区方案:
+Linux 由于文件系统是树形, 一切都从一个根 (`/`) 开始, 而非 windows 那样 C D 盘方式，所以分区方式一般也围绕文件布局展开
 
-1. 一个EFI分区(对于UEFI引导) + 一个Linux根分区
+例如, 要支持 UEFI 启动, 我们需要一个 EFI 分区, 挂载到 `/boot`, 这里推荐分配 500MiB,  
+根 `/` 分一块分区, 也可以接着分你需要的分区, 例如你想把 `/home` 单独挂到独立分区的话,  
+还可以再分一个 swap 分区, 不过对于现代 Linux, 更推荐用 swap 文件 (swapfile), 这和 swap 分区没有性能差异
 
-2. 一个EFI分区(对于UEFI引导) + 一个home目录分区 + 一个Linux根分区
+最终分区示意 (lsblk -f):
 
-也可以再添加一个 swap 分区, 不过对于现代 linux, 更推荐用 swap 文件 (swapfile), 这和 swap 分区没有性能差异
+```txt
+nvme0n1                                                                                
+├─nvme0n1p1 vfat   FAT32 BOOT      /boot
+└─nvme0n1p2 ext4   1.0   ArchLinux /
+```
 
 - EFI 注意事项:
 
-  如果电脑的启动方式是 UEFI, 需要单独分一个 EFI 分区, EFI 分区一般挂载到 `/boot/efi` 或 `/boot`, 如果选择将 EFI 分区挂载到 `/boot`, 大小推荐不小于 500MB  
-  如果你要安装 Windows 和 Linux 双系统, 并且选择共用 EFI 分区, 则建议先安装 Windows 再安装 Linux, 防止 Windows 覆盖/删除 Linux 启动项
+  当安装 Windows 和 Linux 双系统, 并且选择共用 EFI 分区, 建议先安装 Windows 再安装 Linux, 防止 Windows 覆盖/删除 Linux 启动项
 
 - Swap 注意事项:
 
-  如果你要分配 swap 分区, 那么不推荐排在前面, 放后面的话如果需要修改会比较方便
+  如果你选择分配 swap 分区, 那么不推荐排在前面, 放后面的话如果需要修改会比较方便
 
-  如果你要创建 swapfile, 挂载完根分区后就可以创建了 [创建swapfile](#创建swapfile)  
-  在Arch安装过程中 (非arch-chroot下), 请注意 swapfile 的文件路径, 例如系统根分区的临时挂载点是 /mnt, 那么应该把 dd 命令的 of 参数路径改成 /mnt/swapfile 或其他 /mnt 下的路径
+  如果你选择创建 swapfile, 可以在挂载完根分区后创建 [创建swapfile](#创建swapfile)  
 
   对于swap分区/文件要分多大, 可以参考这里 [swap大小建议](#swap大小建议)
 
 你可以按照下方步骤在 archiso 内完成创建和格式化分区,
 或在功能正确的图像化界面下分区, 然后回到这里从挂载分区开始, 例如 Linux 下的 `GParted`, `Partition Manager`
 
-##### 创建分区
+##### 分配分区
 
 如需查看当前硬盘和分区情况, 可以用 `lsblk -f` (常用) 或 `fdisk -l`
 
 推荐使用 `cfdisk` 进行分区, 例如 `cfdisk /dev/nvme0n1`, `cfdist` 主界面可以按 h 查看帮助, 按 n 可以新建分区
 
-需要确保分区类型和以下表格对应
+以GPT分区表举例, 需要确保分区类型和以下表格对应
 
 | 分区          | 类型 (Type)      |
 | ------------- | ---------------- |
@@ -291,14 +295,13 @@ BiliBili: <https://www.bilibili.com/video/BV1XY4y1f77S>
 `cfdisk` 编辑完之后记得 `Write`, 否则你的更改不会生效
 
 > [!WARNING]
-> 请勿对已经存在的分区使用 `cfdisk` 进行二次分区, 会导致分区损坏  
-> ntfs文件系统分区建议使用Windows自带的分区程序或PE提前分一块未分配区域
+> 谨慎对已经存在的分区使用 `cfdisk` 进行改动, 可能导致分区损坏  
 
 ##### 格式化分区
 
-创建完分区之后, 需要格式化分区
+cfdisk 分配分区只是对分区表的修改, 具体分区的文件系统需按与之对应的方式格式化后才能使用
 
-- 对于 EFI 分区 (如果是安装双系统, 选择和 Windows 共用同一个 EFI 分区, 或者已经有了 EFI 分区, 跳过这一步)
+- 对于 EFI 分区
 
   ```bash
   mkfs.fat -F 32 /dev/efi_system_partition
@@ -311,7 +314,7 @@ BiliBili: <https://www.bilibili.com/video/BV1XY4y1f77S>
   mkfs.ext4 /dev/root_partition
   ```
 
-- swap 分区 (或者swapfile, 如果没有可以先跳过这一步, 详细看下方 Note)
+- swap 分区或 swapfile
 
   ```bash
   mkswap /dev/swap_partition
@@ -334,11 +337,8 @@ BiliBili: <https://www.bilibili.com/video/BV1XY4y1f77S>
   ## 其他分区
   # 例如你单独分配了 home 目录的分区
   mount --mkdir /dev/<sda3> /mnt/home
-  ```
 
-- swap分区 (或者swapfile, 如果没有可以先跳过这一步, 详细看下方 Note)
-
-  ```bash
+  ## 对于 swap 分区或者 swapfile
   swapon /dev/swap_partition
   ```
 
@@ -487,7 +487,7 @@ passwd <username>
 | [`GRUB`](#grub)                 | 支持      | 支持      | 支持       | 支持       | 不知道选啥就选这个 |
 | [`systemd-boot`](#systemd-boot) | 不支持    | 支持      | 手动       | 支持       | 轻量简单省事       |
 | [`rEFInd`](#refind)             | 不支持    | 支持      | 支持       | 支持       | 双系统推荐         |
-| `syslinux`                      | 支持      | 部分支持  | 支持       | 支持       | -                  |
+| `Limine`                        | 支持      | 支持      | 支持       | 支持       | 配置文件简单       |
 
 参考文档: <https://wiki.archlinuxcn.org/wiki/Arch_%E7%9A%84%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B#%E5%BC%95%E5%AF%BC%E5%8A%A0%E8%BD%BD%E7%A8%8B%E5%BA%8F>
 
@@ -498,33 +498,36 @@ passwd <username>
 
 ###### 安装GRUB
 
-`efibootmgr` 是 UEFI 启动方式的依赖, 如果是 BIOS 启动可以不用安装  
-`os-prober` 是安装双系统推荐一并安装的依赖, 能够自动检测其他操作系统的 UEFI 启动项, 非双系统可以不安装
-
 ```bash
 pacman -S grub [efibootmgr] [os-prober]
 ```
 
-如果安装了 os-prober, 需要注意 os-prober 在新版 grub 默认禁用, 修改 `/etc/default/grub` 取消注释 `GRUB_DISABLE_OS_PROBER=false` 即可启用 os-prober
+`efibootmgr` 是 UEFI 启动方式的依赖, 如果是 BIOS 启动可以不用安装  
+`os-prober` 是安装双系统推荐一并安装的依赖, 能够自动检测其他操作系统的 UEFI 启动项, 非双系统可以不安装
 
-安装GRUB
+如果安装了 os-prober, 需要注意新版 grub 默认禁用 os-prober, 要取消注释 `/etc/default/grub` 里的 `GRUB_DISABLE_OS_PROBER=false`
 
 - UEFI 安装方式
-
-  确保你安装了 `efibootmgr`
 
   ```bash
   # 将 esp 改为你的 EFI 分区路径, 例如 --efi-directory=/boot
   grub-install [--target=x86_64-efi] --efi-directory=<esp> --bootloader-id=GRUB
   ```
 
+> [!TIP]
+> 主板不认 NVRAM 启动项或要把硬盘换机器时, 加 `--removable`, 会装到 `<esp>/EFI/BOOT/BOOTX64.EFI`
+
 - BIOS 安装方式
 
   ```bash
-  grub-install /dev/xxx
+  # /dev/sdX 是磁盘, 不是分区
+  grub-install [--target=i386-pc] /dev/sdX
   ```
 
-最后生成 grub 配置, 记住此命令, 后续如果修改了 `/etc/default/grub` 或更换内核需要重新生成 grub 配置
+> [!NOTE]
+> BIOS + GPT 要先建一个 1MiB 的 `BIOS boot` 分区 (fdisk 类型 `BIOS boot`, gdisk 代码 `ef02`), 不格式化, 不挂载
+
+最后通过下方命令生成 grub 配置, 记住这条命令, 改了 `/etc/default/grub` 或换内核后都要重新生成
 
 ```bash
 grub-mkconfig -o /boot/grub/grub.cfg
@@ -537,15 +540,13 @@ grub-mkconfig -o /boot/grub/grub.cfg
 或者可以通过 `blkid <device>` 查找启动分区的 UUID, 然后将以下代码添加到 /boot/grub/grub.cfg
 
 ```conf
-### BEGIN /etc/grub.d/30_os-prober ###
-menuentry 'Microsoft Windows 10' {
+menuentry 'Microsoft Windows' {
   insmod part_gpt
   insmod fat
   insmod chain
   search --fs-uuid --no-floppy --set=root <UUID>
-  chainloader
+  chainloader /EFI/Microsoft/Boot/bootmgfw.efi
 }
-### END /etc/grub.d/30_os-prober ###
 ```
 
 ###### Grub 主题
@@ -562,17 +563,62 @@ menuentry 'Microsoft Windows 10' {
 
   GitLab: <https://github.com/Lxtharia/minegrub-world-sel-theme>
 
+主题装好后在 `/etc/default/grub` 里设置 `GRUB_THEME="/boot/grub/themes/<主题>/theme.txt"`, 再运行一次 `grub-mkconfig`
+
 ##### systemd-boot
 
 systemd-boot 是 systemd 全家桶的一部分, 在 arch 不需要额外安装软件包
 
-运行以下命令即可安装
-
 ```bash
-bootctl --esp-path=<esp> install
+bootctl [--esp-path=<esp>] install
 ```
 
-systemd-boot 使用教程请看此处: <https://wiki.archlinuxcn.org/wiki/Systemd-boot>
+ESP 不在 `/efi`、`/boot`、`/boot/efi` 时才需要 `--esp-path`
+
+内核和 initramfs 必须放在 ESP 或 XBOOTLDR 分区, 最简单是 `/boot` 直接挂 ESP
+
+配置:
+
+- `<esp>/loader/loader.conf`
+
+  ```conf
+  default  arch.conf
+  timeout  4
+  console-mode max
+  editor   no
+  ```
+
+  `default @saved` 记住上次启动项
+
+- 启动项, 一个内核一个文件, 放在 `<esp>/loader/entries/`
+
+  ```conf
+  # <esp>/loader/entries/arch.conf
+  title   Arch Linux
+  linux   /vmlinuz-linux
+  initrd  /initramfs-linux.img
+  options root=UUID=xxxx rw quiet
+  ```
+
+  ```conf
+  # <esp>/loader/entries/arch-fallback.conf
+  title   Arch Linux (fallback initramfs)
+  linux   /vmlinuz-linux
+  initrd  /initramfs-linux-fallback.img
+  options root=UUID=xxxx rw
+  ```
+
+  路径相对 ESP 根, ESP 挂 `/boot` 时也写 `/vmlinuz-linux`
+
+升级后 `bootctl update`, 或者启用 `systemd-boot-update.service`
+
+ESP 太小可以单独建 XBOOTLDR 分区放内核, GUID `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (gdisk `ea00`), ESP 挂 `/efi`, XBOOTLDR 挂 `/boot`
+
+```bash
+bootctl --esp-path=/efi --boot-path=/boot install
+```
+
+更多信息可以看 archwiki: <https://wiki.archlinuxcn.org/wiki/Systemd-boot>
 
 ##### rEFInd
 
@@ -584,22 +630,27 @@ pacman -S refind
 refind-install
 ```
 
+`/boot` 不是 FAT 也能用, `refind-install` 会装内核所在文件系统的驱动
+
 > [!WARNING]
 > 当 refind-install 运行在chroot环境下 (例如：安装Arch Linux时的live环境) /boot/refind_linux.conf 内将会添加live系统的内核选项，而不是安装它的系统。  
 > 编辑 /boot/refind_linux.conf 并确保其中的 内核参数 对于你的系统是正确的，否则下次启动可能会出现内核错误。
 
 配置:
 
-- 编辑 `/boot/refind_linux.conf` 配置启动项, 确保其中的内核参数是正确的
-
-  参考示例:
+- `/boot/refind_linux.conf`, 内核参数写在这里, 确保 root 的 UUID 正确
 
   ```conf
-  "Boot with standard options"    "root=UUID=b438fc00-becf-4a22-8d50-ead76d972028 rw quiet splash"
-  "Boot with minimal options"     "ro root=UUID=b438fc00-becf-4a22-8d50-ead76d972028"
+  "Boot with standard options"    "root=UUID=xxxx rw quiet splash"
+  "Boot to terminal"              "root=UUID=xxxx rw quiet splash systemd.unit=multi-user.target"
+  "Boot with minimal options"     "ro root=UUID=xxxx"
   ```
 
-- 配置 refind, `<esp>/EFI/refind/refind.conf`
+  没有的话用 `mkrlconf` 生成, 参数不全, 生成后检查一遍
+
+  多个 initrd (微码) 要手动写 `initrd=`, 路径相对内核所在分区, 用反斜杠: 如果 `/boot` 是独立分区 (ESP 挂 `/boot` 也算), 写 `initrd=intel-ucode.img`, 否则写 `initrd=boot\intel-ucode.img`
+
+- `<esp>/EFI/refind/refind.conf`
 
   ```conf
   # 引导时以图形代替文字
@@ -609,7 +660,25 @@ refind-install
   fold_linux_kernels false
 
   # 填写任何内核变体版本字符串, 以便在 /boot/refind_linux.conf 中的 %v 可以正常工作
-  extra_kernel_version_strings linux-zen,linux-lts
+  extra_kernel_version_strings linux-zen,linux-lts,linux
+  ```
+
+  Windows 花屏/黑屏: `use_graphics_for +,windows` 或给 Windows 条目加 `graphics on`
+
+- 升级后要重新 `refind-install`, 可以用 pacman hook
+
+  `/etc/pacman.d/hooks/refind.hook`
+
+  ```ini
+  [Trigger]
+  Operation = Upgrade
+  Type = Package
+  Target = refind
+
+  [Action]
+  Description = Updating rEFInd on ESP
+  When = PostTransaction
+  Exec = /usr/bin/refind-install
   ```
 
 更多信息可以看 archwiki: <https://wiki.archlinuxcn.org/wiki/REFInd#%E9%85%8D%E7%BD%AE>
@@ -865,15 +934,19 @@ pacman -S intel-oneapi-compiler-shared-runtime
 
 - `GRUB`
 
-  通过 `/etc/default/grub` 修改内核参数, 完成后记得 `sudo grub-mkconfig -o /boot/grub/grub.cfg`
+  `GRUB_CMDLINE_LINUX_DEFAULT` 对普通启动项生效, `GRUB_CMDLINE_LINUX` 对所有启动项 (包括 recovery) 生效, 改完记得 `sudo grub-mkconfig -o /boot/grub/grub.cfg`
 
 - `systemd-boot`
 
-  通过 `/boot/loader/entries/arch.conf` 修改内核参数
+  通过 `<esp>/loader/entries/*.conf` 里的 `options` 修改内核参数
 
 - `refind`
 
   通过 `/boot/refind_linux.conf` 修改内核参数
+
+- `limine`
+
+  通过 `limine.conf` 中对应启动项的 `cmdline:` 修改内核参数
 
 ### 双显卡管理
 
@@ -1009,7 +1082,7 @@ UUID=xxxx /xxx        ext4    defaults    0 2
 Description=Data 1
 
 [Mount]
-What=UUID=82072972-a34a-4c9d-8213-19fc1b722001
+What=UUID=xxxx
 Where=/mnt/data1
 Type=btrfs
 Options=compress=zstd,autodefrag
@@ -1136,7 +1209,7 @@ numfmt --to=iec-i --format="%.2f" $(cat /sys/power/image_size)
 
   ```bash
   ❯ sudo blkid /dev/nvme0n1p1
-  /dev/nvme0n1p1: LABEL="archlinux" UUID="4483df75-6a1d-42a1-9a3e-66406b7a9cac" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="1cf11453-a83c-4dd9-9f88-28a24754818f"
+  /dev/nvme0n1p1: LABEL="archlinux" UUID="xxxx" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="xxxx"
   ```
 
   然后将 `resume=UUID=xxxxxx` 写入到内核参数
@@ -1157,7 +1230,7 @@ numfmt --to=iec-i --format="%.2f" $(cat /sys/power/image_size)
 完成后的内核参数示例:
 
 ```bash
-... resume=UUID=4483df75-6a1d-42a1-9a3e-66406b7a9cac resume_offset=3643392
+... resume=UUID=xxxx resume_offset=xxxx
 ```
 
 > [!NOTE]
@@ -1610,7 +1683,6 @@ pacman 使用方式和 vim 很像, 格式为一个Operator加n个Motion
 | `ark`                     | 图形化归档/压缩管理                   |
 | **网络**                  |                                       |
 | `curl`                    | http 请求                             |
-| `httpie`                  | http 请求                             |
 | `websocat`                | websocket 请求                        |
 | `netcat`                  |                                       |
 | `ss / netstat`            | 网络状态                              |
@@ -2450,6 +2522,19 @@ LimitNOFILE=1000000
 
 [Install]
 WantedBy=multi-user.target
+```
+
+如有需要等待 et 的服务, 创建 `/etc/systemd/system/<xxx>.service.d/10-wait-et.conf`
+
+```conf
+[Unit]
+After=network-online.target easytier.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Restart=always
+RestartSec=3
 ```
 
 ### tailscale
